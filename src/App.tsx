@@ -55,14 +55,14 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col">
+    <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col">
       {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700 sticky top-0 z-40">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="lg:hidden p-2 rounded-lg hover:bg-gray-700 transition-colors"
+              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -70,16 +70,16 @@ function App() {
             </button>
             <div className="flex items-center gap-2">
               <span className="text-2xl">📘</span>
-              <h1 className="text-lg font-bold bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">
+              <h1 className="text-lg font-bold bg-gradient-to-r from-red-600 to-orange-500 bg-clip-text text-transparent">
                 Ansible Самоучитель
               </h1>
             </div>
           </div>
           <div className="hidden sm:flex items-center gap-4">
-            <span className="text-sm text-gray-400">
+            <span className="text-sm text-gray-500">
               Прогресс: {completedLessons.length}/{lessons.length}
             </span>
-            <div className="w-32 h-2 bg-gray-700 rounded-full overflow-hidden">
+            <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full transition-all duration-500"
                 style={{ width: `${(completedLessons.length / lessons.length) * 100}%` }}
@@ -94,7 +94,7 @@ function App() {
         {/* Sidebar overlay */}
         {sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+            className="fixed inset-0 bg-black/30 z-30 lg:hidden"
             onClick={() => setSidebarOpen(false)}
           />
         )}
@@ -122,7 +122,7 @@ function App() {
               <div className="mt-8 text-center">
                 <button
                   onClick={() => setShowQuiz(true)}
-                  className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 rounded-xl font-semibold transition-all transform hover:scale-105 shadow-lg shadow-purple-500/20"
+                  className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl font-semibold transition-all transform hover:scale-105 shadow-lg shadow-purple-500/25"
                 >
                   🧠 Проверить знания
                 </button>
@@ -130,11 +130,11 @@ function App() {
             )}
 
             {/* Navigation */}
-            <div className="mt-10 flex justify-between items-center border-t border-gray-700 pt-6">
+            <div className="mt-10 flex justify-between items-center border-t border-gray-200 pt-6">
               <button
                 onClick={goPrev}
                 disabled={currentLesson === 0}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shadow-sm"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -142,14 +142,14 @@ function App() {
                 <span className="hidden sm:inline">Назад</span>
               </button>
 
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-gray-400">
                 {currentLesson + 1} / {lessons.length}
               </span>
 
               <button
                 onClick={goNext}
                 disabled={currentLesson === lessons.length - 1}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shadow-sm"
               >
                 <span className="hidden sm:inline">Далее</span>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

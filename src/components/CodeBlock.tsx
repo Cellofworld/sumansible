@@ -17,25 +17,27 @@ export default function CodeBlock({ title, language, code }: CodeBlockProps) {
 
   const getLanguageColor = (lang: string) => {
     switch (lang.toLowerCase()) {
-      case 'yaml': return 'text-purple-400 bg-purple-500/10';
-      case 'bash': return 'text-green-400 bg-green-500/10';
-      case 'ini': return 'text-blue-400 bg-blue-500/10';
-      case 'text': return 'text-gray-400 bg-gray-500/10';
-      default: return 'text-gray-400 bg-gray-500/10';
+      case 'yaml': return 'text-purple-700 bg-purple-100';
+      case 'bash': return 'text-green-700 bg-green-100';
+      case 'ini': return 'text-blue-700 bg-blue-100';
+      case 'python': return 'text-yellow-700 bg-yellow-100';
+      case 'groovy': return 'text-pink-700 bg-pink-100';
+      case 'text': return 'text-gray-700 bg-gray-100';
+      default: return 'text-gray-700 bg-gray-100';
     }
   };
 
   return (
-    <div className="rounded-xl overflow-hidden border border-gray-700/50 bg-gray-950">
+    <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-900 shadow-sm">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-800/80 border-b border-gray-700/50">
+      <div className="flex items-center justify-between px-4 py-2 bg-gray-100 border-b border-gray-200">
         <div className="flex items-center gap-3">
           <div className="flex gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
-            <div className="w-3 h-3 rounded-full bg-yellow-500/80"></div>
-            <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
+            <div className="w-3 h-3 rounded-full bg-red-400"></div>
+            <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+            <div className="w-3 h-3 rounded-full bg-green-400"></div>
           </div>
-          <span className="text-sm text-gray-300 font-medium">{title}</span>
+          <span className="text-sm text-gray-700 font-medium">{title}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className={`text-xs px-2 py-0.5 rounded font-mono ${getLanguageColor(language)}`}>
@@ -43,11 +45,11 @@ export default function CodeBlock({ title, language, code }: CodeBlockProps) {
           </span>
           <button
             onClick={handleCopy}
-            className="p-1.5 rounded-md hover:bg-gray-700 transition-colors text-gray-400 hover:text-white"
+            className="p-1.5 rounded-md hover:bg-gray-200 transition-colors text-gray-500 hover:text-gray-700"
             title="Копировать"
           >
             {copied ? (
-              <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             ) : (
@@ -61,7 +63,7 @@ export default function CodeBlock({ title, language, code }: CodeBlockProps) {
       {/* Code */}
       <div className="overflow-x-auto">
         <pre className="p-4 text-sm leading-relaxed">
-          <code className="text-gray-300 font-mono whitespace-pre">{code}</code>
+          <code className="text-gray-200 font-mono whitespace-pre">{code}</code>
         </pre>
       </div>
     </div>

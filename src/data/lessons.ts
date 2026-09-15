@@ -1221,5 +1221,1584 @@ echo "✅ Деплой завершён!"`
       ],
       correct: 0
     }
+  },
+  {
+    id: 13,
+    title: "Работа с Docker",
+    icon: "🐳",
+    theory: [
+      "Ansible отлично интегрируется с Docker для автоматизации работы с контейнерами. Модуль community.docker предоставляет полный набор инструментов для управления контейнерами, образами и сетями.",
+      "Основные возможности:",
+      "• Управление контейнерами (запуск, остановка, удаление)",
+      "• Сборка Docker-образов",
+      "• Управление Docker Compose",
+      "• Работа с Docker-сетями и volumes",
+      "• Управление Docker Registry",
+      "Для работы требуется установленный Docker на управляемых машинах и Python-библиотека docker."
+    ],
+    code: [
+      {
+        title: "Установка Docker",
+        language: "yaml",
+        code: `---
+- name: Установка Docker
+  hosts: all
+  become: yes
+  tasks:
+    - name: Установить зависимости
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+
+    - name: Добавить GPG-ключ Docker
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Добавить репозиторий Docker
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_facts['distribution_release'] }} stable"
+        state: present
+
+    - name: Установить Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+
+    - name: Добавить пользователя в группу docker
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    - name: Запустить Docker
+      service:
+        name: docker
+        state: started
+        enabled: yes`
+      },
+      {
+        title: "Управление контейнерами",
+        language: "yaml",
+        code: `---
+- name: Управление Docker-контейнерами
+  hosts: webservers
+  become: yes
+  tasks:
+    - name: Запустить nginx контейнер
+      community.docker.docker_container:
+        name: my-nginx
+        image: nginx:latest
+        state: started
+        restart_policy: always
+        ports:
+          - "80:80"
+          - "443:443"
+        volumes:
+          - /data/nginx/html:/usr/share/nginx/html:ro
+          - /data/nginx/conf:/etc/nginx/conf.d:ro
+        env:
+          TZ: "Europe/Moscow"
+
+    - name: Остановить контейнер
+      community.docker.docker_container:
+        name: old-app
+        state: stopped
+
+    - name: Удалить контейнер
+      community.docker.docker_container:
+        name: old-app
+        state: absent
+        force_kill: yes
+
+    - name: Перезапустить контейнер
+      community.docker.docker_container:
+        name: my-nginx
+        state: started
+        restart: yes`
+      },
+      {
+        title: "Docker Compose",
+        language: "yaml",
+        code: `---
+- name: Развёртывание через Docker Compose
+  hosts: webservers
+  become: yes
+  vars:
+    app_dir: /opt/myapp
+  tasks:
+    - name: Создать директорию приложения
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+
+    - name: Скопировать docker-compose.yml
+      template:
+        src: docker-compose.yml.j2
+        dest: "{{ app_dir }}/docker-compose.yml"
+
+    - name: Запустить compose
+      community.docker.docker_compose:
+        project_src: "{{ app_dir }}"
+        state: present
+        pull: yes
+        build: yes
+      register: output
+
+    - name: Показать результат
+      debug:
+        var: output
+
+    - name: Остановить compose
+      community.docker.docker_compose:
+        project_src: "{{ app_dir }}"
+        state: absent`
+      },
+      {
+        title: "Сборка образов",
+        language: "yaml",
+        code: `---
+- name: Сборка Docker-образов
+  hosts: builders
+  tasks:
+    - name: Собрать образ
+      community.docker.docker_image:
+        name: myapp
+        tag: latest
+        source: build
+        build:
+          path: /opt/myapp
+          dockerfile: Dockerfile
+          pull: yes
+        state: present
+
+    - name: Отправить в registry
+      community.docker.docker_image:
+        name: myapp
+        tag: latest
+        repository: registry.example.com/myapp:latest
+        push: yes
+        source: local
+
+    - name: Удалить старые образы
+      community.docker.docker_prune:
+        images: yes
+        images_filters:
+          dangling: true`
+      }
+    ],
+    tips: [
+      "Используйте docker_container с recreate=yes для применения изменений конфигурации.",
+      "Для production используйте restart_policy: always или unless-stopped."
+    ],
+    quiz: {
+      question: "Какой параметр docker_container обеспечивает автоматический перезапуск контейнера?",
+      options: ["auto_restart: yes", "restart_policy: always", "restart: true", "keep_running: yes"],
+      correct: 1
+    }
+  },
+  {
+    id: 14,
+    title: "Работа с облаками (AWS)",
+    icon: "☁️",
+    theory: [
+      "Ansible предоставляет мощные модули для управления облачной инфраструктурой. Модуль amazon.aws позволяет создавать и управлять ресурсами AWS: EC2, S3, RDS, VPC и другими.",
+      "Основные возможности:",
+      "• Создание и управление EC2 инстансами",
+      "• Управление security groups",
+      "• Работа с S3 buckets",
+      "• Управление VPC и сетями",
+      "• Создание RDS баз данных",
+      "• Управление Route53 (DNS)",
+      "Для работы требуется настроить AWS credentials через переменные окружения или файл ~/.aws/credentials."
+    ],
+    code: [
+      {
+        title: "Создание EC2 инстанса",
+        language: "yaml",
+        code: `---
+- name: Создание EC2 инстанса
+  hosts: localhost
+  connection: local
+  vars:
+    region: us-east-1
+    instance_type: t3.micro
+    ami_id: ami-0c55b159cbfafe1f0
+    key_name: my-keypair
+    security_group: my-sg
+
+  tasks:
+    - name: Создать security group
+      amazon.aws.ec2_group:
+        name: "{{ security_group }}"
+        description: Web server security group
+        region: "{{ region }}"
+        rules:
+          - proto: tcp
+            from_port: 22
+            to_port: 22
+            cidr_ip: 0.0.0.0/0
+          - proto: tcp
+            from_port: 80
+            to_port: 80
+            cidr_ip: 0.0.0.0/0
+          - proto: tcp
+            from_port: 443
+            to_port: 443
+            cidr_ip: 0.0.0.0/0
+        rules_egress:
+          - proto: all
+            cidr_ip: 0.0.0.0/0
+      register: sg_result
+
+    - name: Запустить EC2 инстанс
+      amazon.aws.ec2_instance:
+        name: web-server-01
+        region: "{{ region }}"
+        instance_type: "{{ instance_type }}"
+        image_id: "{{ ami_id }}"
+        key_name: "{{ key_name }}"
+        security_group: "{{ sg_result.group_id }}"
+        wait: yes
+        state: running
+        tags:
+          Environment: production
+          Role: webserver
+      register: ec2_result
+
+    - name: Показать IP адрес
+      debug:
+        msg: "Public IP: {{ ec2_result.instances[0].public_ip_address }}"`
+      },
+      {
+        title: "Работа с S3",
+        language: "yaml",
+        code: `---
+- name: Управление S3
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Создать S3 bucket
+      amazon.aws.s3_bucket:
+        name: my-app-bucket-12345
+        region: us-east-1
+        state: present
+        versioning: yes
+        tags:
+          Environment: production
+
+    - name: Загрузить файл в S3
+      amazon.aws.s3_object:
+        bucket: my-app-bucket-12345
+        object: /backups/db-backup.sql.gz
+        src: /tmp/db-backup.sql.gz
+        mode: put
+        permission: private
+
+    - name: Скачать файл из S3
+      amazon.aws.s3_object:
+        bucket: my-app-bucket-12345
+        object: /backups/db-backup.sql.gz
+        dest: /tmp/restored-backup.sql.gz
+        mode: get
+
+    - name: Создать presigned URL
+      amazon.aws.s3_object:
+        bucket: my-app-bucket-12345
+        object: /public/file.pdf
+        mode: geturl
+        expiry: 3600
+      register: url_result
+
+    - name: Показать URL
+      debug:
+        var: url_result.presigned_url`
+      },
+      {
+        title: "Динамический инвентарь AWS",
+        language: "yaml",
+        code: `# aws_ec2.yml - конфигурация динамического инвентаря
+---
+plugin: amazon.aws.aws_ec2
+regions:
+  - us-east-1
+  - eu-west-1
+
+filters:
+  tag:Environment: production
+  instance-state-name: running
+
+keyed_groups:
+  - key: tags.Role
+    prefix: role
+  - key: tags.Environment
+    prefix: env
+  - key: placement.region
+    prefix: region
+
+compose:
+  ansible_host: public_ip_address
+
+# Использование:
+# ansible-inventory -i aws_ec2.yml --graph
+# ansible role_webserver -m ping`
+      }
+    ],
+    tips: [
+      "Используйте динамический инвентарь для автоматического обнаружения EC2 инстансов.",
+      "Храните AWS credentials в Ansible Vault, не в коде."
+    ],
+    quiz: {
+      question: "Какой модуль используется для создания EC2 инстансов?",
+      options: ["ec2", "ec2_instance", "aws_instance", "amazon_ec2"],
+      correct: 1
+    }
+  },
+  {
+    id: 15,
+    title: "Kubernetes и Helm",
+    icon: "⎈",
+    theory: [
+      "Ansible может управлять Kubernetes кластерами и развёртывать приложения через Helm charts. Модуль kubernetes.core предоставляет инструменты для работы с K8s ресурсами.",
+      "Основные возможности:",
+      "• Управление namespaces, deployments, services",
+      "• Работа с ConfigMaps и Secrets",
+      "• Развёртывание Helm charts",
+      "• Управление RBAC",
+      "• Мониторинг подов и сервисов",
+      "Для работы требуется kubeconfig файл и доступ к Kubernetes API."
+    ],
+    code: [
+      {
+        title: "Управление Kubernetes ресурсами",
+        language: "yaml",
+        code: `---
+- name: Управление Kubernetes
+  hosts: localhost
+  connection: local
+  vars:
+    kubeconfig: ~/.kube/config
+    namespace: production
+  tasks:
+    - name: Создать namespace
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        name: "{{ namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: present
+
+    - name: Создать Deployment
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: myapp
+            namespace: "{{ namespace }}"
+          spec:
+            replicas: 3
+            selector:
+              matchLabels:
+                app: myapp
+            template:
+              metadata:
+                labels:
+                  app: myapp
+              spec:
+                containers:
+                  - name: myapp
+                    image: myapp:latest
+                    ports:
+                      - containerPort: 8080
+                    resources:
+                      requests:
+                        memory: "128Mi"
+                        cpu: "250m"
+                      limits:
+                        memory: "256Mi"
+                        cpu: "500m"
+
+    - name: Создать Service
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: myapp-service
+            namespace: "{{ namespace }}"
+          spec:
+            selector:
+              app: myapp
+            ports:
+              - port: 80
+                targetPort: 8080
+            type: LoadBalancer`
+      },
+      {
+        title: "Развёртывание Helm charts",
+        language: "yaml",
+        code: `---
+- name: Развёртывание через Helm
+  hosts: localhost
+  connection: local
+  vars:
+    kubeconfig: ~/.kube/config
+    namespace: monitoring
+  tasks:
+    - name: Добавить Helm репозиторий
+      kubernetes.core.helm_repository:
+        name: prometheus-community
+        repo_url: https://prometheus-community.github.io/helm-charts
+
+    - name: Установить Prometheus stack
+      kubernetes.core.helm:
+        kubeconfig: "{{ kubeconfig }}"
+        name: prometheus
+        chart_ref: prometheus-community/kube-prometheus-stack
+        release_namespace: "{{ namespace }}"
+        create_namespace: yes
+        values:
+          grafana:
+            adminPassword: "{{ grafana_password }}"
+          prometheus:
+            prometheusSpec:
+              retention: 15d
+          alertmanager:
+            enabled: yes
+        wait: yes
+        timeout: 600s
+
+    - name: Установить Nginx Ingress Controller
+      kubernetes.core.helm:
+        kubeconfig: "{{ kubeconfig }}"
+        name: ingress-nginx
+        chart_ref: ingress-nginx/ingress-nginx
+        release_namespace: ingress-nginx
+        create_namespace: yes
+        values:
+          controller:
+            replicaCount: 2
+            service:
+              type: LoadBalancer
+
+    - name: Обновить release
+      kubernetes.core.helm:
+        kubeconfig: "{{ kubeconfig }}"
+        name: prometheus
+        chart_ref: prometheus-community/kube-prometheus-stack
+        release_namespace: "{{ namespace }}"
+        values_files:
+          - values/prod-values.yml
+        wait: yes`
+      },
+      {
+        title: "Работа с ConfigMaps и Secrets",
+        language: "yaml",
+        code: `---
+- name: Управление конфигурациями K8s
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Создать ConfigMap
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: app-config
+            namespace: production
+          data:
+            DATABASE_URL: "postgresql://db:5432/myapp"
+            CACHE_TTL: "3600"
+            LOG_LEVEL: "info"
+
+    - name: Создать Secret
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: app-secrets
+            namespace: production
+          type: Opaque
+          data:
+            DB_PASSWORD: "{{ 'secretpass' | b64encode }}"
+            API_KEY: "{{ api_key | b64encode }}"
+
+    - name: Получить информацию о подах
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: production
+        label_selectors:
+          - app=myapp
+      register: pods_info
+
+    - name: Показать статус подов
+      debug:
+        msg: "Pod {{ item.metadata.name }}: {{ item.status.phase }}"
+      loop: "{{ pods_info.resources }}"`
+      }
+    ],
+    tips: [
+      "Используйте k8s_info для получения информации о существующих ресурсах.",
+      "Helm charts упрощают управление сложными приложениями с множеством зависимостей."
+    ],
+    quiz: {
+      question: "Какой модуль используется для развёртывания Helm charts?",
+      options: ["helm_chart", "k8s_helm", "helm", "kubernetes.helm"],
+      correct: 2
+    }
+  },
+  {
+    id: 16,
+    title: "CI/CD интеграция",
+    icon: "🔄",
+    theory: [
+      "Интеграция Ansible с CI/CD системами позволяет автоматизировать развёртывание приложений при каждом изменении кода. Это ключевой элемент DevOps-практик.",
+      "Популярные CI/CD системы для Ansible:",
+      "• GitLab CI/CD",
+      "• GitHub Actions",
+      "• Jenkins",
+      "• CircleCI",
+      "• Azure DevOps",
+      "Основные принципы:",
+      "• Храните playbook в Git репозитории",
+      "• Используйте разные окружения (dev, staging, production)",
+      "• Автоматизируйте тестирование playbook (--check)",
+      "• Требуйте approval для production развёртывания",
+      "• Логируйте все запуски для аудита"
+    ],
+    code: [
+      {
+        title: "GitLab CI/CD (.gitlab-ci.yml)",
+        language: "yaml",
+        code: `---
+stages:
+  - validate
+  - deploy-dev
+  - deploy-staging
+  - deploy-prod
+
+variables:
+  ANSIBLE_HOST_KEY_CHECKING: "False"
+  ANSIBLE_FORCE_COLOR: "True"
+
+before_script:
+  - pip install ansible
+  - ansible-galaxy install -r requirements.yml
+
+validate:
+  stage: validate
+  script:
+    - ansible-playbook site.yml --syntax-check
+    - ansible-playbook site.yml --check --diff
+  only:
+    - merge_requests
+    - master
+
+deploy-dev:
+  stage: deploy-dev
+  script:
+    - ansible-playbook site.yml -i inventory/dev/hosts.ini --vault-password-file $VAULT_PASS
+  environment:
+    name: development
+  only:
+    - master
+  when: manual
+
+deploy-staging:
+  stage: deploy-staging
+  script:
+    - ansible-playbook site.yml -i inventory/staging/hosts.ini --vault-password-file $VAULT_PASS
+  environment:
+    name: staging
+  only:
+    - master
+  when: manual
+
+deploy-prod:
+  stage: deploy-prod
+  script:
+    - ansible-playbook site.yml -i inventory/prod/hosts.ini --vault-password-file $VAULT_PASS --tags "app,web"
+  environment:
+    name: production
+  only:
+    - master
+  when: manual
+  allow_failure: false`
+      },
+      {
+        title: "GitHub Actions",
+        language: "yaml",
+        code: `# .github/workflows/deploy.yml
+name: Deploy Application
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Ansible
+        run: pip install ansible
+
+      - name: Validate playbook
+        run: |
+          ansible-playbook site.yml --syntax-check
+          ansible-playbook site.yml --check
+
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: \${{ github.event.inputs.environment || 'staging' }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: \${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Deploy
+        env:
+          ANSIBLE_VAULT_PASSWORD: \${{ secrets.VAULT_PASSWORD }}
+        run: |
+          echo "\$ANSIBLE_VAULT_PASSWORD" > .vault_pass
+          ansible-playbook site.yml \\
+            -i inventory/\${{ github.event.inputs.environment || 'staging' }}/hosts.ini \\
+            --vault-password-file .vault_pass
+          rm .vault_pass`
+      },
+      {
+        title: "Jenkins Pipeline",
+        language: "groovy",
+        code: `// Jenkinsfile
+pipeline {
+    agent any
+    
+    environment {
+        ANSIBLE_HOST_KEY_CHECKING = 'False'
+    }
+    
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['dev', 'staging', 'production'],
+            description: 'Target environment'
+        )
+        string(
+            name: 'TAGS',
+            defaultValue: '',
+            description: 'Ansible tags to run (optional)'
+        )
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'master', url: 'https://github.com/org/ansible-repo.git'
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                sh 'pip install ansible'
+                sh 'ansible-galaxy install -r requirements.yml'
+            }
+        }
+        
+        stage('Validate') {
+            steps {
+                sh 'ansible-playbook site.yml --syntax-check'
+                sh 'ansible-playbook site.yml --check --diff'
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                script {
+                    def tags = params.TAGS ? "--tags \${params.TAGS}" : ""
+                    sh """
+                        ansible-playbook site.yml \\
+                            -i inventory/\${params.ENVIRONMENT}/hosts.ini \\
+                            --vault-password-file ~/.vault_pass \\
+                            \${tags}
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            slackSend(
+                color: 'good',
+                message: "Deployment to \${params.ENVIRONMENT} succeeded! Job: \${env.JOB_NAME} #\${env.BUILD_NUMBER}"
+            )
+        }
+        failure {
+            slackSend(
+                color: 'danger',
+                message: "Deployment to \${params.ENVIRONMENT} FAILED! Job: \${env.JOB_NAME} #\${env.BUILD_NUMBER}"
+            )
+        }
+    }
+}`
+      }
+    ],
+    tips: [
+      "Используйте manual triggers для production окружений.",
+      "Храните секреты (SSH ключи, vault password) в CI/CD системе, не в коде."
+    ],
+    quiz: {
+      question: "Какой флаг Ansible используется для проверки синтаксиса playbook?",
+      options: ["--validate", "--syntax-check", "--check", "--lint"],
+      correct: 1
+    }
+  },
+  {
+    id: 17,
+    title: "Тестирование playbook",
+    icon: "🧪",
+    theory: [
+      "Тестирование Ansible playbook критически важно для обеспечения надёжности и предотвращения ошибок в production. Существует несколько подходов к тестированию.",
+      "Уровни тестирования:",
+      "1. Синтаксическая проверка (--syntax-check)",
+      "2. Dry-run режим (--check --diff)",
+      "3. Линтинг (ansible-lint)",
+      "4. Модульное тестирование (Molecule)",
+      "5. Интеграционное тестирование (Testinfra)",
+      "6. Тестирование безопасности (ansible-review)",
+      "Molecule — это фреймворк для тестирования Ansible ролей в изолированных окружениях (Docker, Vagrant, облака)."
+    ],
+    code: [
+      {
+        title: "Ansible-lint",
+        language: "bash",
+        code: `# Установка ansible-lint
+pip install ansible-lint
+
+# Запуск линтера
+ansible-lint site.yml
+
+# Линтинг с конфигурацией
+ansible-lint -c .ansible-lint.yml
+
+# Пример .ansible-lint.yml
+---
+skip_list:
+  - yaml[line-length]
+  - no-changed-when
+
+warn_list:
+  - experimental
+
+use_default_rules: true
+verbosity: 1
+
+# Пример вывода:
+# WARNING Listing 3 violation(s) that are fatal
+# yaml[line-length]: Line too long (165 > 120 characters)
+# site.yml:15
+
+# WARNING  Listing 1 violation(s) that are fatal
+# no-changed-when: Commands should not change things if nothing needs doing.
+# roles/app/tasks/main.yml:23 Task/Handler: Run custom script`
+      },
+      {
+        title: "Molecule тестирование",
+        language: "yaml",
+        code: `# molecule/default/molecule.yml
+---
+dependency:
+  name: galaxy
+  options:
+    requirements-file: requirements.yml
+
+driver:
+  name: docker
+
+platforms:
+  - name: ubuntu-22.04
+    image: geerlingguy/docker-ubuntu2204-ansible:latest
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    privileged: true
+    pre_build_image: true
+  
+  - name: centos-8
+    image: geerlingguy/docker-centos8-ansible:latest
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    privileged: true
+    pre_build_image: true
+
+provisioner:
+  name: ansible
+  playbooks:
+    converge: converge.yml
+  inventory:
+    host_vars:
+      ubuntu-22.04:
+        ansible_python_interpreter: /usr/bin/python3
+
+verifier:
+  name: testinfra
+
+# molecule/default/converge.yml
+---
+- name: Converge
+  hosts: all
+  become: true
+  roles:
+    - role: myrole
+
+# molecule/default/tests/test_default.py
+import os
+import testinfra.utils.ansible_runner
+
+testinfra_hosts = testinfra.utils.ansible_runner.AnsibleRunner(
+    os.environ['MOLECULE_INVENTORY_FILE']
+).get_hosts('all')
+
+def test_nginx_installed(host):
+    pkg = host.package('nginx')
+    assert pkg.is_installed
+
+def test_nginx_running(host):
+    service = host.service('nginx')
+    assert service.is_running
+    assert service.is_enabled
+
+def test_nginx_listening(host):
+    socket = host.socket('tcp://0.0.0.0:80')
+    assert socket.is_listening`
+      },
+      {
+        title: "Запуск Molecule",
+        language: "bash",
+        code: `# Установка Molecule
+pip install molecule[docker] pytest-testinfra
+
+# Инициализация тестов для роли
+cd roles/myrole
+molecule init scenario -d docker
+
+# Запуск полного цикла тестирования
+molecule test
+
+# Отдельные этапы:
+molecule create      # Создать тестовые контейнеры
+molecule converge    # Запустить playbook
+molecule verify      # Запустить тесты
+molecule destroy     # Удалить контейнеры
+
+# Отладка
+molecule converge --destroy=never
+molecule login -h ubuntu-22.04
+
+# Тестирование на разных платформах
+molecule test -s default
+molecule test -s centos`
+      },
+      {
+        title: "Testinfra тесты",
+        language: "python",
+        code: `# tests/test_webserver.py
+import pytest
+
+def test_nginx_package(host):
+    """Проверка установки nginx"""
+    nginx = host.package('nginx')
+    assert nginx.is_installed
+    assert nginx.version.startswith('1.18')
+
+def test_nginx_service(host):
+    """Проверка запуска сервиса"""
+    nginx = host.service('nginx')
+    assert nginx.is_running
+    assert nginx.is_enabled
+
+def test_nginx_config(host):
+    """Проверка конфигурации"""
+    config = host.file('/etc/nginx/nginx.conf')
+    assert config.exists
+    assert config.user == 'root'
+    assert config.group == 'root'
+    assert config.mode == 0o644
+    assert config.contains('worker_processes auto')
+
+def test_nginx_port(host):
+    """Проверка открытых портов"""
+    assert host.socket('tcp://80').is_listening
+    assert host.socket('tcp://443').is_listening
+
+def test_app_directory(host):
+    """Проверка директории приложения"""
+    app_dir = host.file('/var/www/myapp')
+    assert app_dir.exists
+    assert app_dir.is_directory
+    assert app_dir.user == 'www-data'
+    assert app_dir.group == 'www-data'
+
+@pytest.mark.parametrize('pkg', [
+    'python3',
+    'git',
+    'curl',
+    'wget'
+])
+def test_required_packages(host, pkg):
+    """Проверка необходимых пакетов"""
+    assert host.package(pkg).is_installed
+
+def test_firewall_rules(host):
+    """Проверка firewall"""
+    assert host.iptables.rules() == [
+        '-A INPUT -p tcp -m tcp --dport 80 -j ACCEPT',
+        '-A INPUT -p tcp -m tcp --dport 443 -j ACCEPT',
+        '-A INPUT -p tcp -m tcp --dport 22 -j ACCEPT'
+    ]`
+      }
+    ],
+    tips: [
+      "Запускайте molecule test перед каждым коммитом в Git.",
+      "Используйте разные сценарии Molecule для тестирования на разных ОС."
+    ],
+    quiz: {
+      question: "Какой инструмент используется для тестирования Ansible ролей в изолированных окружениях?",
+      options: ["pytest", "ansible-test", "Molecule", "Testinfra"],
+      correct: 2
+    }
+  },
+  {
+    id: 18,
+    title: "Мониторинг и логирование",
+    icon: "📊",
+    theory: [
+      "Мониторинг выполнения Ansible playbook критически важен для отладки, аудита и понимания того, что происходит в infrastructure. Ansible предоставляет несколько механизмов для этого.",
+      "Способы мониторинга:",
+      "• Callback плагины (stdout, log_plays, mail, slack)",
+      "• Ansible Tower / AWX — веб-интерфейс с полным мониторингом",
+      "• Интеграция с системами мониторинга (Prometheus, Grafana)",
+      "• Логирование в файлы и syslog",
+      "• Отправка уведомлений в мессенджеры",
+      "Callback плагины позволяют отправлять информацию о выполнении задач в различные системы."
+    ],
+    code: [
+      {
+        title: "Настройка callback плагинов",
+        language: "ini",
+        code: `# ansible.cfg
+[defaults]
+# Включение callback плагинов
+callback_whitelist = profile_tasks, timer, log_plays
+
+# Логирование в файл
+log_path = /var/log/ansible.log
+
+# Callback для отправки в syslog
+callback_plugins = /usr/share/ansible/plugins/callback
+
+# Пример настройки callback
+[callback_log_plays]
+log_folder = /var/log/ansible/hosts
+
+# Profile tasks показывает время выполнения каждой задачи
+# Timer показывает общее время выполнения playbook
+
+# Альтернативный синтаксис для новых версий
+callbacks_enabled = profile_tasks, timer, log_plays, mail`
+      },
+      {
+        title: "Отправка уведомлений",
+        language: "yaml",
+        code: `---
+- name: Развёртывание с уведомлениями
+  hosts: webservers
+  tasks:
+    - name: Развернуть приложение
+      # ... задачи развёртывания ...
+
+  post_tasks:
+    - name: Уведомление в Slack (успех)
+      slack:
+        token: "{{ slack_token }}"
+        channel: "#deployments"
+        msg: "✅ Успешное развёртывание на {{ inventory_hostname }}"
+        color: good
+      delegate_to: localhost
+      when: ansible_play_batch | length > 0
+      run_once: yes
+
+    - name: Отправить email
+      mail:
+        host: smtp.example.com
+        port: 587
+        username: "{{ smtp_user }}"
+        password: "{{ smtp_password }}"
+        to:
+          - ops@example.com
+          - dev@example.com
+        subject: "Ansible: Развёртывание завершено"
+        body: "Развёртывание на {{ inventory_hostname }} успешно завершено"
+        secure: starttls
+      delegate_to: localhost
+      when: deployment_status == 'success'
+      run_once: yes
+
+  handlers:
+    - name: Notify on failure
+      uri:
+        url: "https://hooks.slack.com/services/XXX/YYY/ZZZ"
+        method: POST
+        body_format: json
+        body:
+          text: "❌ ОШИБКА: playbook failed on {{ inventory_hostname }}"
+          channel: "#alerts"
+      delegate_to: localhost
+      listen: "Deployment failed"`
+      },
+      {
+        title: "Интеграция с Prometheus",
+        language: "yaml",
+        code: `---
+- name: Развёртывание с метриками
+  hosts: all
+  tasks:
+    - name: Развернуть приложение
+      # ... задачи ...
+      register: deploy_result
+
+    - name: Отправить метрики в Prometheus Pushgateway
+      uri:
+        url: "http://pushgateway:9091/metrics/job/ansible/instance/{{ inventory_hostname }}"
+        method: POST
+        body_format: raw
+        body: |
+          deployment_success {{ 1 if deploy_result is success else 0 }}
+          deployment_duration {{ deploy_result.elapsed | default(0) }}
+          deployment_timestamp {{ ansible_date_time.epoch }}
+      delegate_to: localhost
+      run_once: yes
+
+    - name: Записать метрики локально
+      copy:
+        content: |
+          {
+            "host": "{{ inventory_hostname }}",
+            "timestamp": "{{ ansible_date_time.iso8601 }}",
+            "status": "{{ 'success' if deploy_result is success else 'failed' }}",
+            "duration": {{ deploy_result.elapsed | default(0) }},
+            "tasks_completed": {{ ansible_play_batch | length }}
+          }
+        dest: "/var/log/ansible/metrics/{{ inventory_hostname }}.json"
+      delegate_to: localhost
+
+# ansible.cfg для prometheus callback
+# [defaults]
+# callback_whitelist = prometheus
+# 
+# [callback_prometheus]
+# pushgateway_url = http://pushgateway:9091`
+      },
+      {
+        title: "AWX / Ansible Tower",
+        language: "yaml",
+        code: `# Установка AWX (open-source версия Ansible Tower)
+---
+- name: Установка AWX
+  hosts: awx-server
+  become: yes
+  tasks:
+    - name: Установить Docker
+      # ... установка Docker ...
+
+    - name: Установить Docker Compose
+      get_url:
+        url: https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: '755'
+
+    - name: Клонировать AWX
+      git:
+        repo: https://github.com/ansible/awx.git
+        dest: /opt/awx
+        version: 21.0.0
+
+    - name: Развернуть AWX
+      shell: |
+        cd /opt/awx/installer
+        ansible-playbook -i inventory install.yml
+      args:
+        chdir: /opt/awx/installer
+
+    - name: Настроить AWX
+      uri:
+        url: "http://localhost:80/api/v2/config/"
+        method: GET
+        status_code: 200
+      register: awx_status
+      until: awx_status.status == 200
+      retries: 30
+      delay: 10
+
+# После установки AWX предоставляет:
+# - Веб-интерфейс для управления
+# - REST API
+# - Планировщик задач
+# - RBAC (Role-Based Access Control)
+# - Полное логирование и аудит
+# - Интеграция с LDAP/AD`
+      }
+    ],
+    tips: [
+      "Используйте callback плагин profile_tasks для анализа производительности playbook.",
+      "Настройте уведомления в Slack/Telegram для критичных развёртываний."
+    ],
+    quiz: {
+      question: "Какой callback плагин показывает время выполнения каждой задачи?",
+      options: ["timer", "profile_tasks", "log_plays", "debug"],
+      correct: 1
+    }
+  },
+  {
+    id: 19,
+    title: "Безопасность и best practices",
+    icon: "🛡️",
+    theory: [
+      "Безопасность — критический аспект при работе с Ansible, так как он имеет доступ к критической инфраструктуре. Следование best practices помогает защитить систему.",
+      "Ключевые принципы безопасности:",
+      "• Минимальные привилегии (principle of least privilege)",
+      "• Шифрование секретов (Ansible Vault)",
+      "• Аудит и логирование всех действий",
+      "• Регулярное обновление Ansible и ролей",
+      "• Использование SSH ключей вместо паролей",
+      "• Ограничение доступа через firewall и security groups",
+      "• Проверка playbook перед выполнением (--check)",
+      "• Использование отдельных пользователей для Ansible"
+    ],
+    code: [
+      {
+        title: "Безопасная конфигурация SSH",
+        language: "yaml",
+        code: `---
+- name: Настройка безопасного SSH
+  hosts: all
+  become: yes
+  tasks:
+    - name: Настроить sshd_config
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      loop:
+        - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+        - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
+        - { regexp: '^#?PubkeyAuthentication', line: 'PubkeyAuthentication yes' }
+        - { regexp: '^#?MaxAuthTries', line: 'MaxAuthTries 3' }
+        - { regexp: '^#?ClientAliveInterval', line: 'ClientAliveInterval 300' }
+      notify: Restart sshd
+
+    - name: Создать пользователя для Ansible
+      user:
+        name: ansible
+        shell: /bin/bash
+        groups: sudo
+        create_home: yes
+        state: present
+
+    - name: Настроить sudo для Ansible
+      copy:
+        content: "ansible ALL=(ALL) NOPASSWD: ALL"
+        dest: /etc/sudoers.d/ansible
+        mode: '0440'
+        validate: 'visudo -cf %s'
+
+    - name: Добавить SSH ключ для Ansible
+      authorized_key:
+        user: ansible
+        state: present
+        key: "{{ lookup('file', 'files/ansible_key.pub') }}"
+
+    - name: Ограничить SSH доступ
+      ufw:
+        rule: limit
+        port: ssh
+        proto: tcp
+        src: "{{ item }}"
+      loop:
+        - 10.0.0.0/8
+        - 192.168.1.0/24
+
+  handlers:
+    - name: Restart sshd
+      service:
+        name: sshd
+        state: restarted`
+      },
+      {
+        title: "Best practices для playbook",
+        language: "yaml",
+        code: `---
+# ✅ ХОРОШО: Явные параметры и проверки
+- name: Безопасное развёртывание
+  hosts: webservers
+  become: yes
+  become_user: root
+  gather_facts: yes
+  
+  vars:
+    # Все переменные явно определены
+    app_version: "{{ lookup('env', 'APP_VERSION') | default('latest') }}"
+    backup_before_deploy: true
+  
+  pre_tasks:
+    - name: Проверить доступность хостов
+      ping:
+      
+    - name: Создать backup перед развёртыванием
+      archive:
+        path: /var/www/app
+        dest: "/backup/app-{{ ansible_date_time.iso8601_basic_short }}.tar.gz"
+      when: backup_before_deploy
+  
+  tasks:
+    - name: Развернуть приложение
+      block:
+        - name: Скачать новую версию
+          get_url:
+            url: "https://releases.example.com/app-{{ app_version }}.tar.gz"
+            dest: /tmp/app.tar.gz
+            checksum: "sha256:{{ app_checksum }}"
+          
+        - name: Распаковать архив
+          unarchive:
+            src: /tmp/app.tar.gz
+            dest: /var/www/app
+            remote_src: yes
+          
+        - name: Установить зависимости
+          pip:
+            requirements: /var/www/app/requirements.txt
+            virtualenv: /var/www/app/venv
+          
+      rescue:
+        - name: Откатить при ошибке
+          debug:
+            msg: "Развёртывание не удалось, выполняем откат"
+          
+        - name: Восстановить из backup
+          unarchive:
+            src: "{{ backup_file }}"
+            dest: /var/www/app
+          when: backup_before_deploy
+          
+      always:
+        - name: Очистить временные файлы
+          file:
+            path: /tmp/app.tar.gz
+            state: absent
+  
+  post_tasks:
+    - name: Проверить работоспособность
+      uri:
+        url: "http://localhost:8080/health"
+        status_code: 200
+      register: health_check
+      retries: 5
+      delay: 3
+      until: health_check.status == 200`
+      },
+      {
+        title: "Аудит и compliance",
+        language: "yaml",
+        code: `---
+- name: Аудит безопасности
+  hosts: all
+  become: yes
+  tasks:
+    - name: Проверить наличие обновлений безопасности
+      apt:
+        upgrade: dist
+        update_cache: yes
+      check_mode: yes
+      register: updates_available
+
+    - name: Показать доступные обновления
+      debug:
+        msg: "Доступно обновлений: {{ updates_available.packages | length }}"
+      when: updates_available.changed
+
+    - name: Проверить права на критичные файлы
+      stat:
+        path: "{{ item }}"
+      loop:
+        - /etc/passwd
+        - /etc/shadow
+        - /etc/sudoers
+      register: file_stats
+
+    - name: Проверить права
+      assert:
+        that:
+          - item.stat.mode == '0644' or item.stat.mode == '0440'
+        fail_msg: "Неправильные права на {{ item.item }}: {{ item.stat.mode }}"
+      loop: "{{ file_stats.results }}"
+
+    - name: Проверить открытые порты
+      shell: ss -tuln | grep LISTEN
+      register: open_ports
+      changed_when: false
+
+    - name: Показать открытые порты
+      debug:
+        var: open_ports.stdout_lines
+
+    - name: Проверить запущенные сервисы
+      service_facts:
+      
+    - name: Показать активные сервисы
+      debug:
+        msg: "{{ ansible_facts.services | dict2items | selectattr('value.state', 'equalto', 'running') | list }}"
+
+    - name: Сгенерировать отчёт аудита
+      template:
+        src: audit_report.json.j2
+        dest: "/var/log/audit/report-{{ ansible_date_time.date }}.json"
+      delegate_to: localhost`
+      }
+    ],
+    tips: [
+      "Используйте block/rescue/always для обработки ошибок и отката.",
+      "Регулярно запускайте аудит безопасности с помощью ansible-lint и специализированных ролей."
+    ],
+    quiz: {
+      question: "Какой блок конструкции используется для обработки ошибок и отката?",
+      options: ["try/catch", "block/rescue/always", "error/handle", "on_error"],
+      correct: 1
+    }
+  },
+  {
+    id: 20,
+    title: "Оптимизация производительности",
+    icon: "⚡",
+    theory: [
+      "При работе с большим количеством серверов производительность Ansible становится критичной. Правильная оптимизация может сократить время выполнения playbook в разы.",
+      "Основные стратегии оптимизации:",
+      "• SSH pipelining — уменьшает количество SSH-сессий",
+      "• Fact caching — кэширование фактов между запусками",
+      "• Parallel execution — параллельное выполнение (forks)",
+      "• Mitogen — альтернативный способ подключения (до 7x быстрее)",
+      "• Оптимизация задач — использование when, loop_control",
+      "• Стратегии выполнения (strategy)",
+      "Fact caching особенно полезен при частых запусках playbook, так как сбор фактов занимает значительное время."
+    ],
+    code: [
+      {
+        title: "Оптимизированная конфигурация",
+        language: "ini",
+        code: `# ansible.cfg - оптимизированная конфигурация
+[defaults]
+# Параллельное выполнение (по умолчанию 5)
+forks = 50
+
+# Кэширование фактов
+gathering = smart
+fact_caching = jsonfile
+fact_caching_connection = /tmp/ansible_facts
+fact_caching_timeout = 86400  # 24 часа
+
+# Отключение ненужных проверок
+host_key_checking = False
+retry_files_enabled = False
+
+# Оптимизация вывода
+stdout_callback = yaml
+nocows = 1
+
+# Пути к ролям и модулям
+roles_path = roles
+library = library
+
+[privilege_escalation]
+become = True
+become_method = sudo
+become_user = root
+
+[ssh_connection]
+# SSH pipelining - критично для производительности!
+pipelining = True
+
+# Оптимизация SSH соединений
+ssh_args = -o ControlMaster=auto -o ControlPersist=60s -o PreferredAuthenticities=publickey
+control_path_dir = /tmp/ansible-ssh-%%h-%%p-%%r
+
+# Compression для медленных соединений
+ssh_extra_args = -o Compression=yes
+
+[connection]
+# Таймауты
+timeout = 30`
+      },
+      {
+        title: "Fact caching",
+        language: "yaml",
+        code: `---
+- name: Демонстрация fact caching
+  hosts: all
+  # gathering = smart в ansible.cfg означает:
+  # - Собирать факты только если их нет в кэше
+  # - Или если они устарели (fact_caching_timeout)
+  gather_facts: yes
+  
+  tasks:
+    - name: Использовать кэшированные факты
+      debug:
+        msg: "OS: {{ ansible_facts['distribution'] }}, IP: {{ ansible_facts['default_ipv4']['address'] }}"
+
+    - name: Пропустить сбор фактов для быстрых задач
+      debug:
+        msg: "Быстрая задача без фактов"
+      # gather_facts: no можно указать для отдельного play
+
+# ansible.cfg для fact caching
+# [defaults]
+# fact_caching = redis
+# fact_caching_connection = localhost:6379:0
+# fact_caching_timeout = 3600
+
+# Или с memcached:
+# fact_caching = memcached
+# fact_caching_connection = localhost:11211`
+      },
+      {
+        title: "Mitogen - ускорение в 7 раз",
+        language: "bash",
+        code: `# Установка Mitogen
+pip install mitogen
+
+# ansible.cfg с Mitogen
+[defaults]
+strategy_plugins = /path/to/mitogen-0.3.0/ansible_mitogen/plugins/strategy
+strategy = mitogen_linear
+
+# Или для mitogen_free (параллельное выполнение)
+strategy = mitogen_free
+
+# Преимущества Mitogen:
+# - До 7x быстрее для больших инвентарей
+# - Меньше накладных расходов на Python
+# - Лучшее использование ресурсов
+
+# Ограничения:
+# - Не поддерживает Windows
+# - Некоторые модули могут не работать
+# - Требует Python 2.6+ или 3.5+ на управляемых машинах
+
+# Сравнение производительности:
+# Без Mitogen: 100 хостов = 5 минут
+# С Mitogen: 100 хостов = 45 секунд`
+      },
+      {
+        title: "Оптимизация задач",
+        language: "yaml",
+        code: `---
+- name: Оптимизированный playbook
+  hosts: webservers
+  become: yes
+  strategy: free  # Параллельное выполнение без ожидания
+  
+  tasks:
+    # ❌ ПЛОХО: Много отдельных задач
+    # - apt: name=nginx state=present
+    # - apt: name=php state=present
+    # - apt: name=mysql state=present
+    
+    # ✅ ХОРОШО: Одна задача с списком
+    - name: Установить пакеты
+      apt:
+        name:
+          - nginx
+          - php-fpm
+          - mysql-server
+          - python3-pip
+        state: present
+        update_cache: yes
+      # Одна SSH сессия вместо четырёх
+
+    # ✅ ХОРОШО: Использовать when для быстрой проверки
+    - name: Настроить nginx
+      template:
+        src: nginx.conf.j2
+        dest: /etc/nginx/nginx.conf
+      when: nginx_config_changed | default(false)
+      notify: Restart nginx
+
+    # ✅ ХОРОШО: Ограничить количество одновременных задач
+    - name: Обновить приложения
+      command: "/opt/app/update.sh {{ item }}"
+      loop: "{{ apps }}"
+      loop_control:
+        pause: 2  # Пауза между итерациями
+      async: 300  # Асинхронное выполнение
+      poll: 10    # Проверка каждые 10 секунд
+      throttle: 3  # Не более 3 хостов одновременно
+
+    # ✅ ХОРОШО: Использовать register для повторного использования
+    - name: Проверить версию приложения
+      command: cat /opt/app/version.txt
+      register: current_version
+      changed_when: false
+
+    - name: Обновить только если нужно
+      command: /opt/app/update.sh
+      when: current_version.stdout != target_version`
+      }
+    ],
+    tips: [
+      "Включите pipelining = True — это самое простое и эффективное улучшение.",
+      "Используйте strategy: free для независимых задач на разных хостах."
+    ],
+    quiz: {
+      question: "Какая настройка даёт наибольшее ускорение при работе с большим количеством хостов?",
+      options: ["forks = 50", "pipelining = True", "strategy = free", "fact_caching = yes"],
+      correct: 1
+    }
   }
 ];
